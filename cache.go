@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+var (
+	ErrKeyExists = fmt.Errorf("item already exists")
+	ErrCacheMiss = fmt.Errorf("item not found")
+)
+
 type Item struct {
 	Object     interface{}
 	Expiration *time.Time
@@ -42,6 +47,10 @@ type cache struct {
 	defaultExpiration time.Duration
 	items             map[string]*Item
 	janitor           *janitor
+
+	// capacity and size in bytes
+	capacity int
+	size     int
 }
 
 // Add an item to the cache, replacing any existing item. If the duration is 0
@@ -64,9 +73,18 @@ func (c *cache) set(k string, x interface{}, d time.Duration) {
 		t := time.Now().Add(d)
 		e = &t
 	}
-	c.items[k] = &Item{
-		Object:     x,
-		Expiration: e,
+	var oldSize int
+	oldItem, found := c.get(k)
+	if found {
+		oldSize = size(oldItem)
+	}
+	newSize := size(x)
+	if newSize > 0 && c.size-oldSize+newSize <= c.capacity {
+		c.items[k] = &Item{
+			Object:     x,
+			Expiration: e,
+		}
+		c.size = c.size - oldSize + newSize
 	}
 }
 
@@ -77,7 +95,7 @@ func (c *cache) Add(k string, x interface{}, d time.Duration) error {
 	_, found := c.get(k)
 	if found {
 		c.Unlock()
-		return fmt.Errorf("Item %s already exists", k)
+		return ErrKeyExists
 	}
 	c.set(k, x, d)
 	c.Unlock()
@@ -125,7 +143,7 @@ func (c *cache) Increment(k string, n int64) error {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return fmt.Errorf("Item %s not found", k)
+		return ErrCacheMiss
 	}
 	switch v.Object.(type) {
 	case int:
@@ -172,7 +190,7 @@ func (c *cache) IncrementFloat(k string, n float64) error {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return fmt.Errorf("Item %s not found", k)
+		return ErrCacheMiss
 	}
 	switch v.Object.(type) {
 	case float32:
@@ -195,7 +213,7 @@ func (c *cache) IncrementInt(k string, n int) (int, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int)
 	if !ok {
@@ -216,7 +234,7 @@ func (c *cache) IncrementInt8(k string, n int8) (int8, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int8)
 	if !ok {
@@ -237,7 +255,7 @@ func (c *cache) IncrementInt16(k string, n int16) (int16, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int16)
 	if !ok {
@@ -258,7 +276,7 @@ func (c *cache) IncrementInt32(k string, n int32) (int32, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int32)
 	if !ok {
@@ -279,7 +297,7 @@ func (c *cache) IncrementInt64(k string, n int64) (int64, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int64)
 	if !ok {
@@ -300,7 +318,7 @@ func (c *cache) IncrementUint(k string, n uint) (uint, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint)
 	if !ok {
@@ -321,7 +339,7 @@ func (c *cache) IncrementUintptr(k string, n uintptr) (uintptr, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uintptr)
 	if !ok {
@@ -342,7 +360,7 @@ func (c *cache) IncrementUint8(k string, n uint8) (uint8, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint8)
 	if !ok {
@@ -363,7 +381,7 @@ func (c *cache) IncrementUint16(k string, n uint16) (uint16, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint16)
 	if !ok {
@@ -384,7 +402,7 @@ func (c *cache) IncrementUint32(k string, n uint32) (uint32, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint32)
 	if !ok {
@@ -405,7 +423,7 @@ func (c *cache) IncrementUint64(k string, n uint64) (uint64, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint64)
 	if !ok {
@@ -426,7 +444,7 @@ func (c *cache) IncrementFloat32(k string, n float32) (float32, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(float32)
 	if !ok {
@@ -447,7 +465,7 @@ func (c *cache) IncrementFloat64(k string, n float64) (float64, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(float64)
 	if !ok {
@@ -472,7 +490,7 @@ func (c *cache) Decrement(k string, n int64) error {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return fmt.Errorf("Item not found")
+		return ErrCacheMiss
 	}
 	switch v.Object.(type) {
 	case int:
@@ -519,7 +537,7 @@ func (c *cache) DecrementFloat(k string, n float64) error {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return fmt.Errorf("Item %s not found", k)
+		return ErrCacheMiss
 	}
 	switch v.Object.(type) {
 	case float32:
@@ -542,7 +560,7 @@ func (c *cache) DecrementInt(k string, n int) (int, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int)
 	if !ok {
@@ -563,7 +581,7 @@ func (c *cache) DecrementInt8(k string, n int8) (int8, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int8)
 	if !ok {
@@ -584,7 +602,7 @@ func (c *cache) DecrementInt16(k string, n int16) (int16, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int16)
 	if !ok {
@@ -605,7 +623,7 @@ func (c *cache) DecrementInt32(k string, n int32) (int32, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int32)
 	if !ok {
@@ -626,7 +644,7 @@ func (c *cache) DecrementInt64(k string, n int64) (int64, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(int64)
 	if !ok {
@@ -647,7 +665,7 @@ func (c *cache) DecrementUint(k string, n uint) (uint, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint)
 	if !ok {
@@ -668,7 +686,7 @@ func (c *cache) DecrementUintptr(k string, n uintptr) (uintptr, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uintptr)
 	if !ok {
@@ -689,7 +707,7 @@ func (c *cache) DecrementUint8(k string, n uint8) (uint8, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint8)
 	if !ok {
@@ -710,7 +728,7 @@ func (c *cache) DecrementUint16(k string, n uint16) (uint16, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint16)
 	if !ok {
@@ -731,7 +749,7 @@ func (c *cache) DecrementUint32(k string, n uint32) (uint32, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint32)
 	if !ok {
@@ -752,7 +770,7 @@ func (c *cache) DecrementUint64(k string, n uint64) (uint64, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(uint64)
 	if !ok {
@@ -773,7 +791,7 @@ func (c *cache) DecrementFloat32(k string, n float32) (float32, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(float32)
 	if !ok {
@@ -794,7 +812,7 @@ func (c *cache) DecrementFloat64(k string, n float64) (float64, error) {
 	v, found := c.items[k]
 	if !found || v.Expired() {
 		c.Unlock()
-		return 0, fmt.Errorf("Item %s not found", k)
+		return 0, ErrCacheMiss
 	}
 	rv, ok := v.Object.(float64)
 	if !ok {
@@ -815,6 +833,11 @@ func (c *cache) Delete(k string) {
 }
 
 func (c *cache) delete(k string) {
+	item, found := c.get(k)
+	if found {
+		s := size(item)
+		c.size -= s
+	}
 	delete(c.items, k)
 }
 
@@ -964,19 +987,20 @@ func runJanitor(c *cache, ci time.Duration) {
 	go j.Run(c)
 }
 
-func newCache(de time.Duration, m map[string]*Item) *cache {
+func newCache(de time.Duration, m map[string]*Item, capacity int) *cache {
 	if de == 0 {
 		de = -1
 	}
 	c := &cache{
 		defaultExpiration: de,
 		items:             m,
+		capacity:          capacity,
 	}
 	return c
 }
 
-func newCacheWithJanitor(de time.Duration, ci time.Duration, m map[string]*Item) *Cache {
-	c := newCache(de, m)
+func newCacheWithJanitor(de time.Duration, ci time.Duration, m map[string]*Item, capacity int) *Cache {
+	c := newCache(de, m, capacity)
 	// This trick ensures that the janitor goroutine (which--granted it
 	// was enabled--is running DeleteExpired on c forever) does not keep
 	// the returned C object from being garbage collected. When it is
@@ -995,9 +1019,9 @@ func newCacheWithJanitor(de time.Duration, ci time.Duration, m map[string]*Item)
 // the items in the cache never expire (by default), and must be deleted
 // manually. If the cleanup interval is less than one, expired items are not
 // deleted from the cache before calling c.DeleteExpired().
-func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
+func New(defaultExpiration, cleanupInterval time.Duration, capacity int) *Cache {
 	items := make(map[string]*Item)
-	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items)
+	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items, capacity)
 }
 
 // Return a new cache with a given default expiration duration and cleanup
@@ -1021,6 +1045,6 @@ func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
 // gob.Register() the individual types stored in the cache before encoding a
 // map retrieved with c.Items(), and to register those same types before
 // decoding a blob containing an items map.
-func NewFrom(defaultExpiration, cleanupInterval time.Duration, items map[string]*Item) *Cache {
-	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items)
+func NewFrom(defaultExpiration, cleanupInterval time.Duration, items map[string]*Item, capacity int) *Cache {
+	return newCacheWithJanitor(defaultExpiration, cleanupInterval, items, capacity)
 }
