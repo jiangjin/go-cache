@@ -17,10 +17,15 @@ func size(v interface{}) int {
 // occupied by the header. If the type of v is not acceptable, dataSize returns -1.
 func dataSize(v reflect.Value) int {
 	if v.Kind() == reflect.Slice {
-		if s := sizeof(v, v.Type().Elem()); s >= 0 {
-			return s * v.Len()
+		sum := 0
+		for i := 0; i < v.Len(); i++ {
+			s := sizeof(v.Index(i), v.Type().Elem())
+			if s < 0 {
+				return -1
+			}
+			sum += s
 		}
-		return -1
+		return sum
 	}
 	return sizeof(v, v.Type())
 }
@@ -48,6 +53,21 @@ func sizeof(v reflect.Value, t reflect.Type) int {
 		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
 		return int(t.Size())
+
+	case reflect.String:
+		return len(v.String())
+
+	case reflect.Map:
+		sum := 0
+		for _, mapKey := range v.MapKeys() {
+			keySize := dataSize(mapKey)
+			valueSize := dataSize(v.MapIndex(mapKey))
+			if keySize < 0 || valueSize < 0 {
+				return -1
+			}
+			sum += keySize + valueSize
+		}
+		return sum
 	}
 
 	return -1
