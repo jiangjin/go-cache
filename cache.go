@@ -836,7 +836,7 @@ func (c *cache) delete(k string) {
 	item, found := c.get(k)
 	if found {
 		s := size(item)
-		c.size -= s
+		c.size += s
 	}
 	delete(c.items, k)
 }
