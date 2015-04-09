@@ -127,8 +127,11 @@ func (c *cache) Get(k string) (interface{}, bool) {
 
 func (c *cache) get(k string) (interface{}, bool) {
 	item, found := c.items[k]
-	if !found || item.Expired() {
+	if !found {
 		return nil, false
+	}
+	if item.Expired() {
+		return item.Object, false
 	}
 	return item.Object, true
 }
@@ -833,8 +836,8 @@ func (c *cache) Delete(k string) {
 }
 
 func (c *cache) delete(k string) {
-	item, found := c.get(k)
-	if found {
+	item, _ := c.get(k)
+	if item != nil {
 		s := size(item)
 		c.size += s
 	}
