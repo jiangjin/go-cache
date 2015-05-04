@@ -4,7 +4,6 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"runtime"
 	"sync"
@@ -850,15 +849,9 @@ func (c *cache) DeleteExpired() {
 	c.Lock()
 	for k, v := range c.items {
 		if v.Expired() {
-			log.Println("key", k, "deleted due to expiration")
 			c.delete(k)
 		}
 	}
-	log.Println("after expiration check:")
-	for k, v := range c.items {
-		log.Println(v.Expiration, k)
-	}
-	log.Println("-------------------------------------------------")
 	c.Unlock()
 }
 

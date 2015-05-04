@@ -1399,7 +1399,7 @@ func TestSerializeUnserializable(t *testing.T) {
 	tc.Set("chan", ch, DefaultExpiration)
 	fp := &bytes.Buffer{}
 	err := tc.Save(fp) // this should fail gracefully
-	if err.Error() != "gob NewTypeObject can't handle type: chan bool" {
+	if err != nil && err.Error() != "gob NewTypeObject can't handle type: chan bool" {
 		t.Error("Error from Save was not gob NewTypeObject can't handle type chan bool:", err)
 	}
 }

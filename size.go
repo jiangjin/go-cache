@@ -49,9 +49,10 @@ func sizeof(v reflect.Value, t reflect.Type) int {
 		}
 		return sum
 
-	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint,
 		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int,
-		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+		reflect.Uintptr, reflect.Ptr:
 		return int(t.Size())
 
 	case reflect.String:
