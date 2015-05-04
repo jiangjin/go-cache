@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"runtime"
 	"sync"
@@ -74,8 +75,8 @@ func (c *cache) set(k string, x interface{}, d time.Duration) {
 		e = &t
 	}
 	var oldSize int
-	oldItem, found := c.get(k)
-	if found {
+	oldItem, _ := c.get(k)
+	if oldItem != nil {
 		oldSize = size(oldItem)
 	}
 	newSize := size(x)
@@ -839,7 +840,7 @@ func (c *cache) delete(k string) {
 	item, _ := c.get(k)
 	if item != nil {
 		s := size(item)
-		c.size += s
+		c.size -= s
 	}
 	delete(c.items, k)
 }
@@ -849,9 +850,15 @@ func (c *cache) DeleteExpired() {
 	c.Lock()
 	for k, v := range c.items {
 		if v.Expired() {
+			log.Println("key", k, "deleted due to expiration")
 			c.delete(k)
 		}
 	}
+	log.Println("after expiration check:")
+	for k, v := range c.items {
+		log.Println(v.Expiration, k)
+	}
+	log.Println("-------------------------------------------------")
 	c.Unlock()
 }
 
