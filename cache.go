@@ -957,6 +957,7 @@ func (c *cache) ItemCount() int {
 func (c *cache) Flush() {
 	c.Lock()
 	c.items = map[string]*Item{}
+	c.size = 0
 	c.Unlock()
 }
 
