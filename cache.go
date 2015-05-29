@@ -48,9 +48,8 @@ type cache struct {
 	items             map[string]*Item
 	janitor           *janitor
 
-	// capacity and size in bytes
+	// capacity - max number of cached items
 	capacity int
-	size     int
 }
 
 // Add an item to the cache, replacing any existing item. If the duration is 0
@@ -73,18 +72,17 @@ func (c *cache) set(k string, x interface{}, d time.Duration) {
 		t := time.Now().Add(d)
 		e = &t
 	}
-	var oldSize int
+
 	oldItem, _ := c.get(k)
-	if oldItem != nil {
-		oldSize = size(oldItem)
+
+	if oldItem == nil && len(c.items) >= c.capacity {
+		// the new key, but the capacity is reached
+		return
 	}
-	newSize := size(x)
-	if newSize > 0 && c.size-oldSize+newSize <= c.capacity {
-		c.items[k] = &Item{
-			Object:     x,
-			Expiration: e,
-		}
-		c.size = c.size - oldSize + newSize
+
+	c.items[k] = &Item{
+		Object:     x,
+		Expiration: e,
 	}
 }
 
@@ -836,11 +834,6 @@ func (c *cache) Delete(k string) {
 }
 
 func (c *cache) delete(k string) {
-	item, _ := c.get(k)
-	if item != nil {
-		s := size(item)
-		c.size -= s
-	}
 	delete(c.items, k)
 }
 
@@ -957,7 +950,6 @@ func (c *cache) ItemCount() int {
 func (c *cache) Flush() {
 	c.Lock()
 	c.items = map[string]*Item{}
-	c.size = 0
 	c.Unlock()
 }
 
